@@ -1,18 +1,22 @@
 # -*- coding: utf-8 -*-
+"""
+
+@author: sophie
+"""
 
 import nltk
 from nltk import pos_tag
 from nltk import word_tokenize, sent_tokenize
 import pandas as pd
 
-def find_body_parts(text, injury_verbs, cp, bp_dict):
+def find_body_parts(text, injury_verbs, cp, bp_dict, exclusions):
     body_parts = set()
     sents = find_main_sents(text, injury_verbs)
     for sent in sents:
         sen_pos = pos_tag(word_tokenize(sent))
         parsed_tree = cp.parse(sen_pos)
-        bp_tmp = find_words_in_tree(parsed_tree, bp_dict)
-        body_parts.update([lem(bp) for bp in bp_tmp])
+        bp = find_words_in_tree(parsed_tree, bp_dict, exclusions)
+        body_parts.update(bp)
     #print(body_parts)
     return body_parts
     
@@ -23,7 +27,7 @@ def find_main_sents(text, injury_verbs):
     return sents
     
 def has_words(sentence, words):
-    has = [a for a in words if a[0] in word_tokenize(sentence)]
+    has = [a for a in words if a[0] in word_tokenize(sentence.translate(sentence.maketrans('/',' ')))]
     #print(str(has) + ": " + sentence)
     return has
     
@@ -40,20 +44,20 @@ def lem(sent):
     #print(tokens_pos_lem)
     return ' '.join(tokens_pos_lem)
     
-def find_words_in_tree(t, words):
+def find_words_in_tree(t, words, exclusions):
     bparts = []
     if hasattr(t, 'label') and t.label():
         if t.label() == 'NP':
             bpart = ' '.join([child[0] for child in t if child[1] not in ['DT']])
-            if is_body_part(bpart, words):
+            if is_body_part(bpart, words, exclusions):
                 bparts.append(bpart)
         else:
             for child in t:
-               bparts.extend(find_words_in_tree(child, words))
+               bparts.extend(find_words_in_tree(child, words, exclusions))
     return bparts
 
-def is_body_part(text, bp_dict):
-    has = has_words(lem(text), bp_dict)
+def is_body_part(text, bp_dict, exclusions):
+    has = has_words(lem(text), bp_dict) and not has_words(lem(text), exclusions)
     #print(str(has) + ": " + text)
     return has
 
@@ -70,6 +74,7 @@ if __name__ == '__main__':
     cases = []
     bp_dict = pd.read_csv('body_parts.csv').values
     injury_verbs = pd.read_csv('injury_verbs.csv').values
+    exclusions = pd.read_csv('exclusion_bp.csv').values
     frame = pd.DataFrame(pd.read_excel('osha.xlsx',header=None))
     
     grammar = r"""
@@ -84,13 +89,13 @@ if __name__ == '__main__':
         try:
             summary = row[2].encode('ascii', 'ignore')
             # print(summary)
-            parts = find_body_parts(str(summary), injury_verbs, cp, bp_dict)
+            parts = find_body_parts(str(summary), injury_verbs, cp, bp_dict, exclusions)
             #parts = find_main_sents(str(summary), injury_verbs)
             #print(parts)
             case = {}
             case['id'] = row[0]
             case['title'] = row[1]
-            if parts:
+            if parts is not None:
                 bodyparts.append(parts)
                 case['content'] = ', '.join(parts)
             else:

@@ -105,12 +105,6 @@ if __name__ == '__main__':
             continue
          
     #print('\n'.join([str(k) + ": " + str(parts) for k, parts in enumerate(bodyparts)]))
-    """
-    frame['5'] = [str(parts) for parts in bodyparts]
-    frame['6'] = ''
-    frame['7'] = ''
-    """
-    #frame.to_csv('osha_with_body_parts.csv', index = False)
     export_csv(cases)
     
     from collections import Counter

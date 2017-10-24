@@ -57,9 +57,17 @@ def is_body_part(text, bp_dict):
     #print(str(has) + ": " + text)
     return has
 
+def export_csv(words_list):
+    import csv
+    f = csv.writer(open('extracted_body_parts.csv', 'w'))
+    f.writerow(['id','title','content'])
+    for words_dict in words_list: 
+        f.writerow([str(words_dict['id']), words_dict['title'], words_dict['content']])
+
     
 if __name__ == '__main__':
     bodyparts = []
+    cases = []
     bp_dict = pd.read_csv('body_parts.csv').values
     injury_verbs = pd.read_csv('injury_verbs.csv').values
     frame = pd.DataFrame(pd.read_excel('osha.xlsx',header=None))
@@ -76,19 +84,22 @@ if __name__ == '__main__':
         try:
             summary = row[2].encode('ascii', 'ignore')
             # print(summary)
-            #parts = find_body_parts(str(summary), injury_verbs, cp, bp_dict)
-            parts = find_main_sents(str(summary), injury_verbs)
+            parts = find_body_parts(str(summary), injury_verbs, cp, bp_dict)
+            #parts = find_main_sents(str(summary), injury_verbs)
             #print(parts)
+            case = {}
+            case['id'] = row[0]
+            case['title'] = row[1]
             if parts:
                 bodyparts.append(parts)
+                case['content'] = ', '.join(parts)
             else:
                 bodyparts.append([])
-                
-            if index > 20:
-                break
-            elif index > 14:
-                print(summary)
+                case['content'] = ''
                 print(index)
+            cases.append(case)
+            if index > 30:
+                break
         except Exception as ex:
             print(ex)
             continue
@@ -98,8 +109,10 @@ if __name__ == '__main__':
     frame['5'] = [str(parts) for parts in bodyparts]
     frame['6'] = ''
     frame['7'] = ''
-    frame.to_csv('osha_with_body_parts.csv', index = False)
     """
+    #frame.to_csv('osha_with_body_parts.csv', index = False)
+    export_csv(cases)
+    
     from collections import Counter
     
     counter = Counter()

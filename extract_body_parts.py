@@ -8,6 +8,7 @@ import nltk
 from nltk import pos_tag
 from nltk import word_tokenize, sent_tokenize
 import pandas as pd
+import time
 
 def find_body_parts(text, injury_verbs, cp, bp_dict, exclusions):
     body_parts = set()
@@ -27,14 +28,16 @@ def find_main_sents(text, injury_verbs):
     return sents
     
 def has_words(sentence, words):
-    has = [a for a in words if a[0] in word_tokenize(sentence.translate(sentence.maketrans('/',' ')))]
+    tokens = word_tokenize(sentence.translate(sentence.maketrans('/',' ')))
+    has = [a for a in words if a[0] in tokens]
     #print(str(has) + ": " + sentence)
     return has
     
 def lem(sent):
     wnl = nltk.WordNetLemmatizer()
     tokens = word_tokenize(sent)
-    tokens_pos = pos_tag(tokens, tagset='universal')
+    tokens_lower=[t.lower() for t in tokens ]
+    tokens_pos = pos_tag(tokens_lower, tagset = 'universal')
     pos_to_wnl_tags = {'ADJ':'a',
                        'ADJ_SAT':'s',
                        'ADV':'r',
@@ -57,7 +60,8 @@ def find_words_in_tree(t, words, exclusions):
     return bparts
 
 def is_body_part(text, bp_dict, exclusions):
-    has = has_words(lem(text), bp_dict) and not has_words(lem(text), exclusions)
+    text_lem = lem(text)
+    has = has_words(text_lem, bp_dict) and not has_words(text_lem, exclusions)
     #print(str(has) + ": " + text)
     return has
 
@@ -70,12 +74,13 @@ def export_csv(words_list):
 
     
 if __name__ == '__main__':
+    start_time = time.time()
     bodyparts = []
     cases = []
     bp_dict = pd.read_csv('body_parts.csv').values
     injury_verbs = pd.read_csv('injury_verbs.csv').values
     exclusions = pd.read_csv('exclusion_bp.csv').values
-    frame = pd.DataFrame(pd.read_excel('osha.xlsx',header=None))
+    frame = pd.DataFrame(pd.read_excel('osha.xlsx', header = None))
     
     grammar = r"""
       NP: {<DT|JJ|NN.*>+}          # Chunk sequences of DT, JJ, NN
@@ -84,7 +89,7 @@ if __name__ == '__main__':
       CLAUSE: {<NP><VP>}           # Chunk NP, VP
       """
     cp = nltk.RegexpParser(grammar)
-    
+    missing = 1
     for index, row in frame.iterrows():
         try:
             summary = row[2].encode('ascii', 'ignore')
@@ -95,16 +100,17 @@ if __name__ == '__main__':
             case = {}
             case['id'] = row[0]
             case['title'] = row[1]
-            if parts is not None:
+            if parts:
                 bodyparts.append(parts)
                 case['content'] = ', '.join(parts)
             else:
                 bodyparts.append([])
                 case['content'] = ''
-                print(index)
+                missing += 1
+                #print(index)
             cases.append(case)
-            if index > 30:
-                break
+            #if index > 1000:
+             #   break
         except Exception as ex:
             print(ex)
             continue
@@ -117,7 +123,11 @@ if __name__ == '__main__':
     counter = Counter()
     for parts in bodyparts:
         for part in parts:
-            counter[part] += 1
+            for splitted in part.split(' '):
+                if splitted in bp_dict:
+                    counter[splitted] += 1
 
     print(counter.most_common(10))
+    print("time taken: ", str(time.time() - start_time), "seconds")
+    print("missing: ", missing, "/", str(len(cases)))
     

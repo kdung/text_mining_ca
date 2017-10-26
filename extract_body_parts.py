@@ -16,7 +16,9 @@ def find_body_parts(text, injury_verbs, cp, bp_dict, exclusions):
     for sent in sents:
         sen_pos = pos_tag(word_tokenize(sent))
         parsed_tree = cp.parse(sen_pos)
+        #print(parsed_tree)
         bp = find_words_in_tree(parsed_tree, bp_dict, exclusions)
+        #print(bp)
         body_parts.update(bp)
     #print(body_parts)
     return body_parts
@@ -51,8 +53,10 @@ def find_words_in_tree(t, words, exclusions):
     bparts = []
     if hasattr(t, 'label') and t.label():
         if t.label() == 'NP':
+            #print(t)
             bpart = ' '.join([child[0] for child in t if child[1] not in ['DT']])
             if is_body_part(bpart, words, exclusions):
+                #print(bpart)
                 bparts.append(bpart)
         else:
             for child in t:
@@ -61,26 +65,27 @@ def find_words_in_tree(t, words, exclusions):
 
 def is_body_part(text, bp_dict, exclusions):
     text_lem = lem(text)
+    #print("is body part ",text_lem)
     has = has_words(text_lem, bp_dict) and not has_words(text_lem, exclusions)
     #print(str(has) + ": " + text)
     return has
 
-def export_csv(words_list):
+def export_csv(words_list, output):
     import csv
-    f = csv.writer(open('extracted_body_parts.csv', 'w'))
+    f = csv.writer(open(output, 'w'))
     f.writerow(['id','title','content'])
     for words_dict in words_list: 
         f.writerow([str(words_dict['id']), words_dict['title'], words_dict['content']])
 
     
-if __name__ == '__main__':
+def extract_body_parts(data_url, output):
     start_time = time.time()
     bodyparts = []
     cases = []
     bp_dict = pd.read_csv('body_parts.csv').values
     injury_verbs = pd.read_csv('injury_verbs.csv').values
     exclusions = pd.read_csv('exclusion_bp.csv').values
-    frame = pd.DataFrame(pd.read_excel('osha.xlsx', header = None))
+    data = pd.read_csv(data_url).values
     
     grammar = r"""
       NP: {<DT|JJ|NN.*>+}          # Chunk sequences of DT, JJ, NN
@@ -90,7 +95,7 @@ if __name__ == '__main__':
       """
     cp = nltk.RegexpParser(grammar)
     missing = 1
-    for index, row in frame.iterrows():
+    for index, row in enumerate(data):
         try:
             summary = row[2].encode('ascii', 'ignore')
             # print(summary)
@@ -107,27 +112,41 @@ if __name__ == '__main__':
                 bodyparts.append([])
                 case['content'] = ''
                 missing += 1
-                #print(index)
+                #print(row[0])
             cases.append(case)
-            #if index > 1000:
+            #if index > 10:
              #   break
         except Exception as ex:
             print(ex)
             continue
          
     #print('\n'.join([str(k) + ": " + str(parts) for k, parts in enumerate(bodyparts)]))
-    export_csv(cases)
+    export_csv(cases, output)
     
     from collections import Counter
-    
+    synonyms = {'feet':'foot',
+                 'abdominal':'abdomen',
+                 'temple':'head',
+                 'forehead':'head',
+                 'finger':'hand',
+                 'thumb':'foot',
+                 'palm':'hand',
+                 'toe':'foot',
+                 'scalp':'head',
+                 'skull':'head',
+                 'fingernail':'hand',
+                 'heel':'foot',
+                 'teeth':'tooth'}
     counter = Counter()
     for parts in bodyparts:
         for part in parts:
             for splitted in part.split(' '):
-                if splitted in bp_dict:
-                    counter[splitted] += 1
+                splitted_lem = lem(splitted).lower()
+                if splitted_lem in bp_dict:
+                    key = synonyms[splitted_lem] if splitted_lem in synonyms else splitted_lem
+                    counter[key] += 1
 
-    print(counter.most_common(10))
-    print("time taken: ", str(time.time() - start_time), "seconds")
-    print("missing: ", missing, "/", str(len(cases)))
+    print(counter.most_common(100))
+    print("time taken:", str(time.time() - start_time), "seconds")
+    print("empty:", missing, "/", str(len(cases)))
     

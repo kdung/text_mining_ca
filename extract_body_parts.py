@@ -82,9 +82,9 @@ def extract_body_parts(data_url, output):
     start_time = time.time()
     bodyparts = []
     cases = []
-    bp_dict = pd.read_csv('body_parts.csv').values
-    injury_verbs = pd.read_csv('injury_verbs.csv').values
-    exclusions = pd.read_csv('exclusion_bp.csv').values
+    bp_dict = pd.read_csv('dicts/body_parts.csv').values
+    injury_verbs = pd.read_csv('dicts/injury_verbs.csv').values
+    exclusions = pd.read_csv('dicts/exclusion_bp.csv').values
     data = pd.read_csv(data_url).values
     
     grammar = r"""
